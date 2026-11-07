@@ -95,7 +95,7 @@ fetch miniz-3.1.2 https://github.com/richgel999/miniz/archive/refs/tags/3.1.2.ta
 fetch SDL3-3.2.10 https://github.com/libsdl-org/SDL/releases/download/release-3.2.10/SDL3-3.2.10.tar.gz
 fetch Vulkan-Headers-1.4.363 https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/v1.4.363.tar.gz
 fetch SPIRV-Headers-1.4.309 https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.309.0.tar.gz
-fetch ffmpeg-7.1.5 https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz
+#fetch ffmpeg-7.1.5 https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz
 
 # 仅头文件：vulkan-hpp（NDK 自带 Vulkan 1.3.275 C 头但没有它）与 SPIR-V。
 cm vulkan-headers "$src/Vulkan-Headers-1.4.363"
