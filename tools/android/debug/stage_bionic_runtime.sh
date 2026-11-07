@@ -29,7 +29,6 @@ inputs=(
     "$out/bin/kgsl-chip-id"
     "$out/lib/libgow3cpu.so"
     "$out/lib/libgow3gpu.so"
-    "$out/lib/libbloodframe.so"
     "$out/lib/libc++_shared.so"
     # libSDL3.so 是 Android 必需项：游戏进程用 SDL 音频子系统（disk 驱动）把 PCM 写进
     # app 的 FIFO（run-bionic.sh 设 SDL_AUDIO_DRIVER=disk，AudioBridge.java 消费）。
