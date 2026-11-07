@@ -146,6 +146,5 @@ links=(-L"$out/lib" -lgow3gpu -lgow3cpu -Wl,-rpath,'$ORIGIN/../lib' -rdynamic -p
     -o "$out/bin/kgsl-chip-id"
 # 帧生成引擎（change add-native-frame-generation）：libbloodframe.so（MIT，钉 commit，
 # 首次构建需网络 clone）。runtime-manifest 将其列为必需——失败即失败，不静默缺库。
-bash tools/android/build_framegen.sh
 
 echo "Built $out/bin/gow3-probe, $out/lib/libgow3gpu.so, $out/lib/libgow3cpu.so, $out/lib/libbloodframe.so (Bionic, API $api)"
