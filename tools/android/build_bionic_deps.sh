@@ -127,12 +127,12 @@ cm sdl3 "$src/SDL3-3.2.10" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=O
    # make install >/dev/null
     # configure 的 Android 目标会为 MediaCodec/JNI 链接 libandroid/libmediandk，这里都禁用了。
     # macOS 自带 BSD sed 需要 -i ''（Linux GNU sed 兼容两种写法）。
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        sed -i '' 's/ -landroid -lmediandk//' "$prefix"/lib/pkgconfig/libavutil.pc
-    else
-        sed -i 's/ -landroid -lmediandk//' "$prefix"/lib/pkgconfig/libavutil.pc
-    fi
-    popd >/dev/null
-    touch "$prefix/.done-ffmpeg"
-fi
+   # if [[ "$(uname -s)" == "Darwin" ]]; then
+       # sed -i '' 's/ -landroid -lmediandk//' "$prefix"/lib/pkgconfig/libavutil.pc
+   # else
+       # sed -i 's/ -landroid -lmediandk//' "$prefix"/lib/pkgconfig/libavutil.pc
+   # fi
+   # popd >/dev/null
+   # touch "$prefix/.done-ffmpeg"
+#fi
 echo "Bionic deps in $prefix"
