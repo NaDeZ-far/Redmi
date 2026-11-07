@@ -187,6 +187,7 @@ static ABI int32_t save_umount(const MountPoint *point) {
     if (!initialized) return ERR_NOT_INITIALIZED;
     pthread_mutex_lock(&lock);
     int slot=slot_of(point);
+    printf("Runtime: save io: umount(%s) -> %s\n",point ? point->data : "(null)",slot>=0 ? "ok" : "not mounted");
     if (slot>=0) { runtime_file_unmount(point->data); slots[slot].used=0; }
     pthread_mutex_unlock(&lock);
     return slot>=0 ? 0 : ERR_NOT_FOUND;
@@ -198,6 +199,7 @@ static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const 
     int slot=slot_of(point);
     if (slot<0) { pthread_mutex_unlock(&lock); return ERR_NOT_MOUNTED; }
     Param p; read_param(slots[slot].meta,&p);
+    printf("Runtime: save io: SetParam(%s, type %u, %llu bytes)\n",point->data,type,(unsigned long long)size);
     switch (type) {
     case 0: if (size<sizeof(Param)) goto bad; memcpy(&p,buffer,sizeof(p)); break;     /* ALL */
     case 1: snprintf(p.title,sizeof(p.title),"%.*s",(int)size,(const char *)buffer); break;

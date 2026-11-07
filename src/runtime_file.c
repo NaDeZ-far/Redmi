@@ -198,8 +198,16 @@ static int game_path(const char *p) {
     return (!strncmp(p,"/app0",5) && (!p[5] || p[5]=='/')) ||
            (!strncmp(p,"/hostapp",8) && (!p[8] || p[8]=='/'));
 }
+/* Save-data tracing: every file operation under /savedataN is logged, so a save that does not
+ * reach the disk shows exactly which call went wrong (path, flags, size, host errno). */
+static int save_path(const char *p) { return p && !strncmp(p,"/savedata",9); }
+static void save_trace(const char *op,const char *guest,int64_t result,const char *detail) {
+    if (!save_path(guest)) return;
+    printf("Runtime: save io: %s(%s%s%s) -> %lld\n",op,guest,detail ? ", " : "",detail ? detail : "",(long long)result);
+    if (result<0) printf("Runtime: save io: ^ host errno %d (%s)\n",(int)-result,strerror((int)-result));
+}
 /* All operations return >=0 or -(host errno); wrappers adapt the convention. */
-static int64_t do_open(const char *guest,int flags,int mode) {
+static int64_t do_open_raw(const char *guest,int flags,int mode) {
     if (game_path(guest) && (flags & (3|0x8|0x200|0x400|0x800))) return -EROFS;
     char path[1024];
     int e=translate(guest,path,sizeof(path));
@@ -259,11 +267,17 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     }
     return fd;
 }
+static int64_t do_open(const char *guest,int flags,int mode) {
+    int64_t r=do_open_raw(guest,flags,mode);
+    if (save_path(guest)) { char d[64]; snprintf(d,sizeof(d),"flags 0x%x mode 0%o",flags,mode); save_trace("open",guest,r,d); }
+    return r;
+}
 static int64_t do_close(int fd) {
     if (fd>=0 && fd<3) return 0;
     pthread_mutex_lock(&lock);
     File *f=get(fd);
     if (!f) { pthread_mutex_unlock(&lock); return -EBADF; }
+    if (save_path(f->path)) printf("Runtime: save io: close(%s)\n",f->path);
     if (f->host>=0) close(f->host);
     free_listing(f->dir);
     *f=(File){0};
@@ -316,6 +330,7 @@ static int64_t do_write(int fd,const void *buffer,uint64_t size) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
     ssize_t n=host_write(h,buffer,size);
+    if (save_path(files[fd].path)) { char d[48]; snprintf(d,sizeof(d),"%llu bytes",(unsigned long long)size); save_trace("write",files[fd].path,n<0 ? -errno : n,d); }
     if (n<0) return -errno;
     __atomic_add_fetch(&writes,1,__ATOMIC_RELAXED);
     return n;
@@ -324,6 +339,7 @@ static int64_t do_pwrite(int fd,const void *buffer,uint64_t size,int64_t offset)
     int h=host_fd(fd);
     if (h<0) return -EBADF;
     ssize_t n=pwrite(h,buffer,size,offset);
+    if (save_path(files[fd].path)) { char d[64]; snprintf(d,sizeof(d),"%llu bytes @%lld",(unsigned long long)size,(long long)offset); save_trace("pwrite",files[fd].path,n<0 ? -errno : n,d); }
     return n<0 ? -errno : n;
 }
 static int64_t do_lseek(int fd,int64_t offset,int whence) {
@@ -361,7 +377,7 @@ static int64_t do_stat(const char *guest,GuestStat *out) {
     int e=translate(guest,path,sizeof(path));
     if (e) return -e;
     if (!out) return -EFAULT;
-    if (host_stat(path,&s)) return -errno;
+    if (host_stat(path,&s)) { int er=errno; save_trace("stat",guest,-er,NULL); return -er; }
     convert_stat(&s,out); return 0;
 }
 static int64_t do_getdents(int fd,char *buffer,uint64_t size,int64_t *basep) {
@@ -399,7 +415,9 @@ static int64_t path_op(const char *guest,int op,int mode) {
     int e=translate(guest,path,sizeof(path));
     if (e) return -e;
     int r= op==0 ? mkdir(path,mode ? mode : 0755) : op==1 ? rmdir(path) : unlink(path);
-    return r ? -errno : 0;
+    int er=errno;
+    save_trace(op==0 ? "mkdir" : op==1 ? "rmdir" : "unlink",guest,r ? -er : 0,NULL);
+    return r ? -er : 0;
 }
 static int64_t do_rename(const char *from,const char *to) {
     if (game_path(from) || game_path(to)) return -EROFS;
@@ -411,7 +429,9 @@ static int64_t do_rename(const char *from,const char *to) {
     /* POSIX rename replaces an existing target; the CRT's fails. */
     return MoveFileExA(a,b,MOVEFILE_REPLACE_EXISTING) ? 0 : -compat_errno_from_win32(GetLastError());
 #else
-    return rename(a,b) ? -errno : 0;
+    int rr=rename(a,b), er=errno;
+    save_trace("rename",from,rr ? -er : 0,to);
+    return rr ? -er : 0;
 #endif
 }
 static int64_t do_ftruncate(int fd,int64_t length) {
@@ -435,7 +455,9 @@ static int64_t do_truncate(const char *guest,int64_t length) {
     close(h);
     return r;
 #else
-    return truncate(path,length) ? -errno : 0;
+    int tr=truncate(path,length), er=errno;
+    save_trace("truncate",guest,tr ? -er : 0,NULL);
+    return tr ? -er : 0;
 #endif
 }
 static int64_t do_fsync(int fd) { int h=host_fd(fd); if (h<0) return -EBADF; return fsync(h) ? -errno : 0; }
@@ -446,7 +468,9 @@ static int64_t do_access(const char *guest,int mode) {
 #ifdef _WIN32
     return access(path,mode&6) ? -errno : 0; /* X_OK is invalid for the CRT */
 #else
-    return access(path,mode&7) ? -errno : 0;
+    int ar=access(path,mode&7), er=errno;
+    if (ar) save_trace("access",guest,-er,NULL);
+    return ar ? -er : 0;
 #endif
 }
 
